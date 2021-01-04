@@ -72,7 +72,6 @@ class VisualizationDemo(object):
             if "instances" in predictions:
                 instances = predictions["instances"].to(self.cpu_device)
                 vis_output = visualizer.draw_instance_predictions(predictions=instances)
-
         return predictions, vis_output
 
     def _frame_from_video(self, video):

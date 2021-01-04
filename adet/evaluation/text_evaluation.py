@@ -288,4 +288,3 @@ def decode(rec):
             s += u'口'
 
     return s
-            

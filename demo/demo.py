@@ -1,21 +1,42 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import argparse
+import difflib
 import glob
 import multiprocessing as mp
 import os
+import sys
 import time
 import cv2
 import tqdm
+import json
+import subprocess
+import shutil
+import re
 
 from detectron2.data.detection_utils import read_image
 from detectron2.utils.logger import setup_logger
-
 from predictor import VisualizationDemo
 from adet.config import get_cfg
 
+from adet.evaluation.text_evaluation import instances_to_coco_json as rec_result
+
+
 # constants
 WINDOW_NAME = "COCO detections"
+text_output = {'time':'content'}
 
+def str_similar(s1, s2):
+    seq = difflib.SequenceMatcher(lambda x:x in " ", s1, s2)
+    ratio = seq.ratio()
+    return ratio
+
+class redirect:
+    content = ""
+
+    def write(self,str):
+        self.content += str
+    def flush(self):
+        self.content = ""
 
 def setup_cfg(args):
     # load config from file and command-line arguments
@@ -65,31 +86,65 @@ def get_parser():
 
 
 if __name__ == "__main__":
+
     mp.set_start_method("spawn", force=True)
     args = get_parser().parse_args()
     logger = setup_logger()
     logger.info("Arguments: " + str(args))
-
     cfg = setup_cfg(args)
-
     demo = VisualizationDemo(cfg)
 
+    #######################3just use this segment to do text_recgonize##################3
     if args.input:
+
         if os.path.isdir(args.input[0]):
             args.input = [os.path.join(args.input[0], fname) for fname in os.listdir(args.input[0])]
         elif len(args.input) == 1:
             args.input = glob.glob(os.path.expanduser(args.input[0]))
             assert args.input, "The input path(s) was not found"
+
+        imageinput = args.input
+        imageinput.sort(key = lambda x:int(x.split('/')[-1].split('.')[0]))
+        i = 0
+        temp = ''
         for path in tqdm.tqdm(args.input, disable=not args.output):
+
+            current = sys.stdout
+            r = redirect()
+            sys.stdout = r
+            #all printf saved in r.content from now
+
+            #convert filename to video_time
+            basename = os.path.basename(path)
+            seconds = int(os.path.splitext(basename)[0]) - 1
+            m, s = divmod(seconds, 60)
+            h, m = divmod(m, 60)
+            video_time = '{0}:{1:02d}:{2:02d}'.format(h, m, s)
+
             # use PIL, to be consistent with evaluation
             img = read_image(path, format="BGR")
             start_time = time.time()
             predictions, visualized_output = demo.run_on_image(img)
-            logger.info(
-                "{}: detected {} instances in {:.2f}s".format(
-                    path, len(predictions["instances"]), time.time() - start_time
-                )
-            )
+            # logger.info(
+            #     "{}: detected {} instances in {:.2f}s".format(
+            #         path, len(predictions["instances"]), time.time() - start_time
+            #     )
+            # )
+            if r.content == "":
+                pass
+            else:
+                ratio = str_similar(temp, r.content)
+                if ratio < 0.2:  #When ratio < 0.2, we seems the content is a new_text_result, it can be ajusted
+                    temp = r.content
+                    new_text_result = {video_time:r.content}
+
+                    #save text_result into .json file
+                    filename = 'test.json'
+                    with open(filename, 'a') as file_obj:
+                        json.dump(new_text_result, file_obj, indent=4)
+
+            sys.stdout = current
+            #stop to capture printf content from now
 
             if args.output:
                 if os.path.isdir(args.output):
@@ -100,9 +155,22 @@ if __name__ == "__main__":
                     out_filename = args.output
                 visualized_output.save(out_filename)
             else:
-                cv2.imshow(WINDOW_NAME, visualized_output.get_image()[:, :, ::-1])
-                if cv2.waitKey(0) == 27:
-                    break  # esc to quit
+                # cv2.imshow(WINDOW_NAME, visualized_output.get_image()[:, :, ::-1])
+                # cv2.waitKey(1)
+                print(str(i) + 'done')
+                i = i + 1
+
+                # cv2.destroyAllWindows()
+                # if cv2.waitKey(0) == 1:
+                #     break  # esc to quit
+
+        # filename = 'test.json'
+        # with open(filename, 'a') as file_obj:
+        #     json.dump(r.content, file_obj)
+        # print(r.content)
+        # sys.stdout = current
+
+    ##########################From here below are USELESS###############################
     elif args.webcam:
         assert args.input is None, "Cannot have both --input and --webcam!"
         cam = cv2.VideoCapture(0)
@@ -150,3 +218,17 @@ if __name__ == "__main__":
             output_file.release()
         else:
             cv2.destroyAllWindows()
+
+
+    # filename = 'test.json'
+    # with open(filename, 'a') as file_obj:
+    #     json.dump(r.content, file_obj)
+    # print(r.content)
+    # sys.stdout = current
+
+
+    # filename = 'result.json'
+    # with open(filename, 'a') as file_obj:
+    #     json.dump(output_result, file_obj, indent=4)
+
+

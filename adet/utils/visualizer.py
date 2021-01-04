@@ -1,7 +1,9 @@
 import numpy as np
-
+import json
 from detectron2.utils.visualizer import Visualizer
+from adet.utils.printresult import output_result
 
+text_result = ''
 
 class TextVisualizer(Visualizer):
     def draw_instance_predictions(self, predictions):
@@ -25,6 +27,7 @@ class TextVisualizer(Visualizer):
 
         return points
 
+    # Thi is useful output
     def _decode_recognition(self, rec):
         CTLABELS = [' ','!','"','#','$','%','&','\'','(',')','*','+',',','-','.','/','0','1','2','3','4','5','6','7','8','9',':',';','<','=','>','?','@','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','[','\\',']','^','_','`','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','{','|','}','~']
 
@@ -35,6 +38,7 @@ class TextVisualizer(Visualizer):
                 s += CTLABELS[c]
             elif c == 95:
                 s += u'口'
+        print(s)
         return s
 
     def _ctc_decode_recognition(self, rec):
@@ -53,6 +57,8 @@ class TextVisualizer(Visualizer):
                 s += u'口'
             else:
                 last_char = False
+
+       # print(s)
         return s
 
     def overlay_instances(self, beziers, recs, scores, alpha=0.5):
